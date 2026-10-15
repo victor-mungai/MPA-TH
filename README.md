@@ -4,7 +4,7 @@ This repository contains a small API that will be used to demonstrate containeri
 
 ## Current application
 
-The application is a dependency-free Node.js HTTP service with two endpoints:
+The application is a Node.js HTTP service with two endpoints:
 
 - `GET /` returns basic service information.
 - `GET /health` returns the service health status.
@@ -21,7 +21,13 @@ Start the API:
 npm start
 ```
 
-The service listens on port `3000` by default. To use another port, set the `PORT` environment variable.
+The service listens on `0.0.0.0:3000` by default and shuts down gracefully when it receives `SIGINT` or `SIGTERM`.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `HOST` | `0.0.0.0` | Interface on which the server listens |
+| `PORT` | `3000` | HTTP port |
+| `SHUTDOWN_TIMEOUT_MS` | `10000` | Maximum graceful-shutdown time |
 
 Run the tests:
 
