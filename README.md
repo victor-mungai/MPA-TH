@@ -51,6 +51,20 @@ npm run lint
 npm run test:coverage
 ```
 
+## Build the application image
+
+Build the production image:
+
+```bash
+docker build --target runtime -t mpa-devops-case-study:local .
+```
+
+The Dockerfile also provides a `test` target that runs linting and tests during the build:
+
+```bash
+docker build --target test .
+```
+
 ## Planned work
 
 Containerization, the local multi-service environment, CI/CD, cloud infrastructure, and operational documentation will be added in later phases.
