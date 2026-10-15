@@ -26,6 +26,17 @@ test("GET /health reports a healthy service", async () => {
   assert.match(response.headers.get("x-request-id"), /^[0-9a-f-]{36}$/);
 });
 
+test("GET / returns service information", async () => {
+  const response = await fetch(baseUrl);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "application/json");
+  assert.deepEqual(await response.json(), {
+    name: "mpa-devops-case-study",
+    message: "API is running",
+  });
+});
+
 test("GET /ready reports a ready service", async () => {
   const response = await fetch(`${baseUrl}/ready`);
 
@@ -55,4 +66,37 @@ test("unknown routes return 404", async () => {
 
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), { error: "not_found" });
+});
+
+test("unsupported methods return 404", async () => {
+  const response = await fetch(`${baseUrl}/health`, { method: "POST" });
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: "not_found" });
+});
+
+test("readiness errors return a generic internal error", async () => {
+  const errors = [];
+  const failingServer = createServer({
+    isReady: async () => {
+      throw new Error("sensitive dependency detail");
+    },
+    logger: {
+      error(context, message) {
+        errors.push({ context, message });
+      },
+      info() {},
+    },
+  });
+  await new Promise((resolve) => failingServer.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${failingServer.address().port}`;
+
+  try {
+    const response = await fetch(`${url}/ready`);
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: "internal_server_error" });
+    assert.equal(errors[0].message, "Request failed");
+  } finally {
+    await new Promise((resolve) => failingServer.close(resolve));
+  }
 });

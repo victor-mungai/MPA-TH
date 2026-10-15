@@ -31,27 +31,27 @@ function createServer({ isReady = async () => true, logger = createLogger() } = 
     });
 
     try {
-    if (request.method === "GET" && request.url === "/") {
-      return sendJson(response, 200, {
-        name: "mpa-devops-case-study",
-        message: "API is running",
-      });
-    }
+      if (request.method === "GET" && request.url === "/") {
+        return sendJson(response, 200, {
+          name: "mpa-devops-case-study",
+          message: "API is running",
+        });
+      }
 
-    if (request.method === "GET" && request.url === "/health") {
-      return sendJson(response, 200, { status: "ok" });
-    }
+      if (request.method === "GET" && request.url === "/health") {
+        return sendJson(response, 200, { status: "ok" });
+      }
 
-    if (request.method === "GET" && request.url === "/ready") {
-      const ready = await isReady();
-      return sendJson(
-        response,
-        ready ? 200 : 503,
-        { status: ready ? "ready" : "unavailable" },
-      );
-    }
+      if (request.method === "GET" && request.url === "/ready") {
+        const ready = await isReady();
+        return sendJson(
+          response,
+          ready ? 200 : 503,
+          { status: ready ? "ready" : "unavailable" },
+        );
+      }
 
-    return sendJson(response, 404, { error: "not_found" });
+      return sendJson(response, 404, { error: "not_found" });
     } catch (error) {
       logger.error({ error: { message: error.message, name: error.name }, requestId }, "Request failed");
       return sendJson(response, 500, { error: "internal_server_error" });
@@ -67,7 +67,9 @@ function registerShutdownHandlers(
   let shuttingDown = false;
 
   const shutdown = (signal) => {
-    if (shuttingDown) return;
+    if (shuttingDown) {
+      return;
+    }
     shuttingDown = true;
 
     logger.info({ signal }, "Shutdown requested");

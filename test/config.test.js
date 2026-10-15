@@ -45,3 +45,8 @@ test("configuration accepts supported environment values", () => {
 test("configuration rejects an invalid port", () => {
   assert.throws(() => loadConfig({ PORT: "invalid" }), /PORT must be an integer/);
 });
+
+test("configuration rejects unsafe database pool limits", () => {
+  assert.throws(() => loadConfig({ DB_POOL_MAX: "0" }), /DB_POOL_MAX must be an integer/);
+  assert.throws(() => loadConfig({ DB_POOL_MAX: "101" }), /DB_POOL_MAX must be an integer/);
+});

@@ -13,7 +13,9 @@ function createLogger({ level = "info", output = process.stdout } = {}) {
   }
 
   function write(logLevel, context, message) {
-    if (levels[level] < levels[logLevel]) return;
+    if (levels[level] < levels[logLevel]) {
+      return;
+    }
 
     const details = context instanceof Error
       ? { error: serializeError(context) }

@@ -44,6 +44,13 @@ Run the tests:
 npm test
 ```
 
+Run lint checks and produce a test coverage report:
+
+```bash
+npm run lint
+npm run test:coverage
+```
+
 ## Planned work
 
 Containerization, the local multi-service environment, CI/CD, cloud infrastructure, and operational documentation will be added in later phases.
