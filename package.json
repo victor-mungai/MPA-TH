@@ -11,12 +11,12 @@
     "test:coverage": "node --test --experimental-test-coverage"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "dependencies": {
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "eslint": "^9.39.5"
+    "eslint": "^10.11.0"
   }
 }

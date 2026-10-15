@@ -14,7 +14,7 @@ The application is a Node.js HTTP service with three endpoints:
 
 Requirements:
 
-- Node.js 20 or newer
+- Node.js 24 or newer
 
 Start the API:
 

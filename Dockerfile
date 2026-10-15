@@ -20,6 +20,16 @@ RUN npm ci --omit=dev && npm cache clean --force
 FROM node:24.21.0-alpine3.24 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
+RUN rm -rf \
+      /opt/yarn-* \
+      /usr/local/lib/node_modules/corepack \
+      /usr/local/lib/node_modules/npm \
+    && rm -f \
+      /usr/local/bin/corepack \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg
 COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./
 COPY --chown=node:node src ./src
