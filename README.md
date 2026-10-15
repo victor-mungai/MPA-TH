@@ -100,6 +100,18 @@ docker compose down
 
 Add `--volumes` only when you intentionally want to delete the local PostgreSQL data volume.
 
+## Pull request checks
+
+Pull requests to `main` run automated validation in GitHub Actions. The workflow:
+
+1. Installs dependencies from the committed lockfile.
+2. Runs linting, test coverage, and a dependency audit against a real PostgreSQL service.
+3. Builds both the test and production container targets.
+4. Scans the repository and runtime image for high or critical vulnerabilities, exposed secrets, and unsafe configuration.
+5. Runs CodeQL static analysis for JavaScript.
+
+The workflow uses read-only repository access by default, pins actions to immutable commit SHAs, does not expose deployment credentials, and cancels superseded runs.
+
 ## Planned work
 
 Containerization, the local multi-service environment, CI/CD, cloud infrastructure, and operational documentation will be added in later phases.

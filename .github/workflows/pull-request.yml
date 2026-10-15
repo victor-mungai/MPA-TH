@@ -1,0 +1,125 @@
+name: Pull request validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Superseded runs do not consume runner capacity or report stale results.
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Read-only repository access is the default; jobs elevate only when required.
+permissions:
+  contents: read
+
+jobs:
+  application:
+    name: Lint, test, and audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.11-alpine3.24
+        env:
+          # These credentials exist only inside the disposable runner network.
+          POSTGRES_DB: app_test
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_USER: app_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app_test -d app_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://app_test:test-only-password@127.0.0.1:5432/app_test
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint application
+        run: npm run lint
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+  container:
+    name: Build and scan container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The test target proves that the same build context passes lint and tests.
+      - name: Build test target
+        run: docker build --target test .
+
+      - name: Build runtime image
+        run: docker build --target runtime --tag local/mpa-api:${{ github.sha }} .
+
+      # Trivy blocks high or critical dependency, secret, and configuration findings.
+      - name: Scan repository
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          cache: "true"
+          exit-code: "1"
+          ignore-unfixed: "true"
+          scan-ref: .
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+
+      - name: Scan runtime image
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          cache: "true"
+          exit-code: "1"
+          ignore-unfixed: "true"
+          image-ref: local/mpa-api:${{ github.sha }}
+          scan-type: image
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+
+  codeql:
+    name: CodeQL analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@cee97f86b972a3ded3c58d04148362b193ddc518 # v4.38.3
+        with:
+          languages: javascript-typescript
+
+      - name: Analyze application
+        uses: github/codeql-action/analyze@cee97f86b972a3ded3c58d04148362b193ddc518 # v4.38.3
+        with:
+          category: /language:javascript-typescript
