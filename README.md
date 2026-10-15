@@ -65,6 +65,39 @@ The Dockerfile also provides a `test` target that runs linting and tests during 
 docker build --target test .
 ```
 
+## Run the complete local environment
+
+The local environment includes Nginx, the API, and PostgreSQL. Copy the example configuration and replace the placeholder database password:
+
+```bash
+cp .env.example .env
+```
+
+On PowerShell, use `Copy-Item .env.example .env` instead.
+
+Start the environment:
+
+```bash
+docker compose up --build
+```
+
+The API is available through Nginx at `http://localhost:8080`. The application and database ports are not published to the host.
+
+Check the endpoints:
+
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+```
+
+Stop the environment:
+
+```bash
+docker compose down
+```
+
+Add `--volumes` only when you intentionally want to delete the local PostgreSQL data volume.
+
 ## Planned work
 
 Containerization, the local multi-service environment, CI/CD, cloud infrastructure, and operational documentation will be added in later phases.
