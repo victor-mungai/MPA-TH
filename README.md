@@ -112,6 +112,8 @@ Pull requests to `main` run automated validation in GitHub Actions. The workflow
 
 The workflow uses read-only repository access by default, pins actions to immutable commit SHAs, does not expose deployment credentials, and cancels superseded runs.
 
+Merges to `main` also run the image publishing workflow. After validation and vulnerability scanning, it uses GitHub OIDC to obtain short-lived AWS credentials and pushes a commit-SHA-tagged image to Amazon ECR. See [image publishing configuration](docs/image-publishing.md) for the required repository variables and least-privilege IAM permissions.
+
 ## Planned work
 
 Containerization, the local multi-service environment, CI/CD, cloud infrastructure, and operational documentation will be added in later phases.
