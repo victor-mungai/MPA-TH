@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24.21.0-alpine3.24 AS development-dependencies
+FROM node:26.11.1-alpine3.24 AS development-dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -11,13 +11,13 @@ COPY test ./test
 COPY eslint.config.js ./
 RUN npm run lint && npm test
 
-FROM node:24.21.0-alpine3.24 AS production-dependencies
+FROM node:26.11.1-alpine3.24 AS production-dependencies
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-FROM node:24.21.0-alpine3.24 AS runtime
+FROM node:26.11.1-alpine3.24 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN rm -rf \
