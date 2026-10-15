@@ -83,6 +83,8 @@ docker compose up --build
 
 The API is available through Nginx at `http://localhost:8080`. The application and database ports are not published to the host.
 
+The application and proxy run with read-only filesystems, dropped Linux capabilities, bounded resources, and rotated container logs. PostgreSQL data is stored in the named `postgres-data` volume.
+
 Check the endpoints:
 
 ```bash
