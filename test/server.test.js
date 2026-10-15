@@ -25,6 +25,27 @@ test("GET /health reports a healthy service", async () => {
   assert.deepEqual(await response.json(), { status: "ok" });
 });
 
+test("GET /ready reports a ready service", async () => {
+  const response = await fetch(`${baseUrl}/ready`);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "ready" });
+});
+
+test("GET /ready reports an unavailable dependency", async () => {
+  const unavailableServer = createServer({ isReady: async () => false });
+  await new Promise((resolve) => unavailableServer.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${unavailableServer.address().port}`;
+
+  try {
+    const response = await fetch(`${url}/ready`);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { status: "unavailable" });
+  } finally {
+    await new Promise((resolve) => unavailableServer.close(resolve));
+  }
+});
+
 test("unknown routes return 404", async () => {
   const response = await fetch(`${baseUrl}/missing`);
 

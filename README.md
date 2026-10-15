@@ -4,10 +4,11 @@ This repository contains a small API that will be used to demonstrate containeri
 
 ## Current application
 
-The application is a Node.js HTTP service with two endpoints:
+The application is a Node.js HTTP service with three endpoints:
 
 - `GET /` returns basic service information.
 - `GET /health` returns the service health status.
+- `GET /ready` checks whether the database is available to serve traffic.
 
 ## Run locally
 
@@ -28,6 +29,11 @@ The service listens on `0.0.0.0:3000` by default and shuts down gracefully when 
 | `HOST` | `0.0.0.0` | Interface on which the server listens |
 | `PORT` | `3000` | HTTP port |
 | `SHUTDOWN_TIMEOUT_MS` | `10000` | Maximum graceful-shutdown time |
+| `DATABASE_URL` | none | PostgreSQL connection URL used by the readiness check |
+| `DB_CONNECT_TIMEOUT_MS` | `2000` | Database connection timeout |
+| `DB_POOL_MAX` | `10` | Maximum number of database connections |
+
+Without `DATABASE_URL`, the API still starts and its liveness endpoint remains available, but `/ready` returns HTTP `503`.
 
 Run the tests:
 

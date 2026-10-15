@@ -10,6 +10,19 @@ function parseInteger(name, value, { min, max }) {
 
 function loadConfig(environment = process.env) {
   return Object.freeze({
+    database: Object.freeze({
+      connectionString: environment.DATABASE_URL || null,
+      connectionTimeoutMs: parseInteger(
+        "DB_CONNECT_TIMEOUT_MS",
+        environment.DB_CONNECT_TIMEOUT_MS || "2000",
+        { min: 100, max: 30000 },
+      ),
+      maxConnections: parseInteger(
+        "DB_POOL_MAX",
+        environment.DB_POOL_MAX || "10",
+        { min: 1, max: 100 },
+      ),
+    }),
     host: environment.HOST || "0.0.0.0",
     port: parseInteger("PORT", environment.PORT || "3000", {
       min: 1,
