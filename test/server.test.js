@@ -7,7 +7,7 @@ let baseUrl;
 let server;
 
 before(async () => {
-  server = createServer();
+  server = createServer({ logger: { error() {}, info() {} } });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
@@ -23,6 +23,7 @@ test("GET /health reports a healthy service", async () => {
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { status: "ok" });
+  assert.match(response.headers.get("x-request-id"), /^[0-9a-f-]{36}$/);
 });
 
 test("GET /ready reports a ready service", async () => {
@@ -33,7 +34,10 @@ test("GET /ready reports a ready service", async () => {
 });
 
 test("GET /ready reports an unavailable dependency", async () => {
-  const unavailableServer = createServer({ isReady: async () => false });
+  const unavailableServer = createServer({
+    isReady: async () => false,
+    logger: { error() {}, info() {} },
+  });
   await new Promise((resolve) => unavailableServer.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${unavailableServer.address().port}`;
 

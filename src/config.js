@@ -24,6 +24,7 @@ function loadConfig(environment = process.env) {
       ),
     }),
     host: environment.HOST || "0.0.0.0",
+    logLevel: environment.LOG_LEVEL || "info",
     port: parseInteger("PORT", environment.PORT || "3000", {
       min: 1,
       max: 65535,

@@ -11,6 +11,7 @@ test("configuration uses safe defaults", () => {
       maxConnections: 10,
     },
     host: "0.0.0.0",
+    logLevel: "info",
     port: 3000,
     shutdownTimeoutMs: 10000,
   });
@@ -20,6 +21,7 @@ test("configuration accepts supported environment values", () => {
   assert.deepEqual(
     loadConfig({
       HOST: "127.0.0.1",
+      LOG_LEVEL: "error",
       PORT: "8080",
       SHUTDOWN_TIMEOUT_MS: "5000",
       DATABASE_URL: "postgresql://app:secret@localhost/app",
@@ -33,6 +35,7 @@ test("configuration accepts supported environment values", () => {
         maxConnections: 20,
       },
       host: "127.0.0.1",
+      logLevel: "error",
       port: 8080,
       shutdownTimeoutMs: 5000,
     },
