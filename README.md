@@ -114,6 +114,8 @@ The workflow uses read-only repository access by default, pins actions to immuta
 
 Merges to `main` also run the image publishing workflow. After validation and vulnerability scanning, it uses GitHub OIDC to obtain short-lived AWS credentials and pushes a commit-SHA-tagged image to Amazon ECR. See [image publishing configuration](docs/image-publishing.md) for the required repository variables and least-privilege IAM permissions.
 
-## Planned work
+## Infrastructure design
 
-Containerization, the local multi-service environment, CI/CD, cloud infrastructure, and operational documentation will be added in later phases.
+The [AWS reference architecture](infrastructure/README.md) models a secure and horizontally scalable ECS Fargate deployment across multiple availability zones, with an Application Load Balancer, autoscaling, isolated PostgreSQL, encrypted storage, immutable images, least-privilege IAM, and centralized logs.
+
+Infrastructure automation is validation-only. GitHub Actions formats, validates, and scans the Terraform without AWS credentials, remote state, planning, applying, or creating resources.
