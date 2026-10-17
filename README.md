@@ -2,8 +2,6 @@
 
 This repository contains a small API that will be used to demonstrate containerization, CI/CD, infrastructure as code, and operational practices.
 
-The written response for the multi-market scenario is available in [AfriPay Market Expansion Strategy](docs/afripay-strategy.md).
-
 ## Current application
 
 The application is a Node.js HTTP service with three endpoints:
