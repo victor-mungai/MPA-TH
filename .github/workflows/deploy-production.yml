@@ -38,6 +38,7 @@ permissions:
   contents: read
 
 jobs:
+  # Reject unsafe or incomplete operator input before requesting production approval.
   validate:
     name: Validate release request
     runs-on: ubuntu-24.04
@@ -64,12 +65,14 @@ jobs:
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # Required reviewers are configured on each market environment in GitHub settings.
     environment:
       name: production-${{ inputs.market }}
     permissions:
       contents: read
       id-token: write
     steps:
+      # OIDC avoids persistent AWS keys and the environment role is scoped to one market.
       - name: Configure short-lived AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
@@ -194,6 +197,7 @@ jobs:
           echo "The service did not stabilize within five minutes." >&2
           exit 1
 
+      # This is a second safety net in addition to the ECS deployment circuit breaker.
       - name: Restore previous task definition on failure
         if: failure() && steps.release.outputs.previous != ''
         env:
