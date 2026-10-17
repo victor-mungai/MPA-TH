@@ -1,0 +1,226 @@
+name: Deploy or roll back production
+
+on:
+  workflow_dispatch:
+    inputs:
+      market:
+        description: Target market
+        required: true
+        type: choice
+        options:
+          - kenya
+          - tanzania
+          - lesotho
+          - ethiopia
+          - mozambique
+          - drc
+      operation:
+        description: Deployment operation
+        required: true
+        type: choice
+        options:
+          - deploy
+          - rollback
+      image_uri:
+        description: Immutable ECR image URI for a deployment
+        required: false
+        type: string
+      rollback_task_definition:
+        description: Previous ECS task-definition ARN for a rollback
+        required: false
+        type: string
+
+concurrency:
+  group: production-${{ inputs.market }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate release request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Validate immutable release input
+        env:
+          IMAGE_URI: ${{ inputs.image_uri }}
+          OPERATION: ${{ inputs.operation }}
+          ROLLBACK_TASK_DEFINITION: ${{ inputs.rollback_task_definition }}
+        run: |
+          if [[ "$OPERATION" == "deploy" ]]; then
+            if [[ ! "$IMAGE_URI" =~ ^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9._/-]+@sha256:[0-9a-f]{64}$ ]]; then
+              echo "A deployment requires an ECR image pinned to a sha256 digest." >&2
+              exit 1
+            fi
+          elif [[ ! "$ROLLBACK_TASK_DEFINITION" =~ ^arn:aws:ecs:[a-z0-9-]+:[0-9]{12}:task-definition/[a-zA-Z0-9_-]+:[0-9]+$ ]]; then
+            echo "A rollback requires a complete ECS task-definition ARN." >&2
+            exit 1
+          fi
+
+  production:
+    name: ${{ inputs.operation }} ${{ inputs.market }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: production-${{ inputs.market }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: Deploy-${{ inputs.market }}-${{ github.run_id }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+
+      - name: Select release and capture rollback target
+        id: release
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}
+          IMAGE_URI: ${{ inputs.image_uri }}
+          OPERATION: ${{ inputs.operation }}
+          ROLLBACK_TASK_DEFINITION: ${{ inputs.rollback_task_definition }}
+          SERVICE: ${{ vars.ECS_SERVICE }}
+        run: |
+          current=$(aws ecs describe-services \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+
+          if [[ -z "$current" || "$current" == "None" ]]; then
+            echo "The configured ECS service was not found." >&2
+            exit 1
+          fi
+
+          current_family=$(aws ecs describe-task-definition \
+            --task-definition "$current" \
+            --query 'taskDefinition.family' \
+            --output text)
+
+          if [[ "$OPERATION" == "rollback" ]]; then
+            target_family=$(aws ecs describe-task-definition \
+              --task-definition "$ROLLBACK_TASK_DEFINITION" \
+              --query 'taskDefinition.family' \
+              --output text)
+            if [[ "$target_family" != "$current_family" ]]; then
+              echo "Rollback target belongs to a different service family." >&2
+              exit 1
+            fi
+            target="$ROLLBACK_TASK_DEFINITION"
+          else
+            aws ecs describe-task-definition \
+              --task-definition "$current" \
+              --query taskDefinition > task-definition.json
+            jq --arg image "$IMAGE_URI" --arg container "$CONTAINER_NAME" '
+              .containerDefinitions |= map(
+                if .name == $container then .image = $image else . end
+              )
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy
+                )
+            ' task-definition.json > release-task-definition.json
+
+            matches=$(jq --arg container "$CONTAINER_NAME" \
+              '[.containerDefinitions[] | select(.name == $container)] | length' \
+              release-task-definition.json)
+            if [[ "$matches" != "1" ]]; then
+              echo "Exactly one configured application container must exist." >&2
+              exit 1
+            fi
+
+            target=$(aws ecs register-task-definition \
+              --cli-input-json file://release-task-definition.json \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text)
+          fi
+
+          echo "previous=$current" >> "$GITHUB_OUTPUT"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Start rolling deployment
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          SERVICE: ${{ vars.ECS_SERVICE }}
+          TARGET: ${{ steps.release.outputs.target }}
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --task-definition "$TARGET" \
+            --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100' \
+            --no-cli-pager > /dev/null
+
+      - name: Verify service stability
+        id: stability
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          SERVICE: ${{ vars.ECS_SERVICE }}
+          TARGET: ${{ steps.release.outputs.target }}
+        run: |
+          for attempt in {1..20}; do
+            state=$(aws ecs describe-services \
+              --cluster "$CLUSTER" \
+              --services "$SERVICE" \
+              --query 'services[0].{running:runningCount,desired:desiredCount,pending:pendingCount,task:taskDefinition,rollout:deployments[?status==`PRIMARY`]|[0].rolloutState}' \
+              --output json)
+
+            if [[ "$(jq -r '.rollout' <<< "$state")" == "FAILED" ]]; then
+              echo "The ECS deployment circuit breaker reported a failure." >&2
+              exit 1
+            fi
+
+            if [[ "$(jq -r '.task' <<< "$state")" == "$TARGET" ]] \
+              && [[ "$(jq -r '.running' <<< "$state")" == "$(jq -r '.desired' <<< "$state")" ]] \
+              && [[ "$(jq -r '.pending' <<< "$state")" == "0" ]] \
+              && [[ "$(jq -r '.rollout' <<< "$state")" == "COMPLETED" ]]; then
+              exit 0
+            fi
+            sleep 15
+          done
+
+          echo "The service did not stabilize within five minutes." >&2
+          exit 1
+
+      - name: Restore previous task definition on failure
+        if: failure() && steps.release.outputs.previous != ''
+        env:
+          CLUSTER: ${{ vars.ECS_CLUSTER }}
+          PREVIOUS: ${{ steps.release.outputs.previous }}
+          SERVICE: ${{ vars.ECS_SERVICE }}
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --task-definition "$PREVIOUS" \
+            --force-new-deployment \
+            --no-cli-pager > /dev/null
+          echo "Restored previous task definition: $PREVIOUS" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record release
+        if: success()
+        env:
+          MARKET: ${{ inputs.market }}
+          OPERATION: ${{ inputs.operation }}
+          PREVIOUS: ${{ steps.release.outputs.previous }}
+          TARGET: ${{ steps.release.outputs.target }}
+        run: |
+          {
+            echo "### Production release"
+            echo "- Market: $MARKET"
+            echo "- Operation: $OPERATION"
+            echo "- Previous task definition: $PREVIOUS"
+            echo "- Active task definition: $TARGET"
+          } >> "$GITHUB_STEP_SUMMARY"
